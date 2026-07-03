@@ -316,9 +316,10 @@ class CardServiceTest {
 
     @Test
     void getCardTransactions_notOwner_throwsAccessDenied() {
+        Pageable pageable = PageRequest.of(0, 10);
         when(cardRepository.findById(10L)).thenReturn(Optional.of(activeCard));
 
-        assertThatThrownBy(() -> cardService.getCardTransactions(10L, 2L, PageRequest.of(0, 10)))
+        assertThatThrownBy(() -> cardService.getCardTransactions(10L, 2L, pageable))
                 .isInstanceOf(AccessDeniedException.class);
         verify(transactionRepository, never()).findByCardId(any(), any());
     }

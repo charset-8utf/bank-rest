@@ -15,7 +15,6 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 class OwnershipHandlerTest {
 
     private OwnershipHandler handler;
-    private User owner;
     private User other;
     private Card fromCard;
     private Card toCard;
@@ -23,7 +22,7 @@ class OwnershipHandlerTest {
     @BeforeEach
     void setUp() {
         handler = new OwnershipHandler();
-        owner = User.builder().id(1L).build();
+        User owner = User.builder().id(1L).build();
         other = User.builder().id(2L).build();
         fromCard = Card.builder().id(10L).owner(owner).status(CardStatus.ACTIVE).balance(BigDecimal.valueOf(500)).build();
         toCard   = Card.builder().id(20L).owner(owner).status(CardStatus.ACTIVE).balance(BigDecimal.ZERO).build();
