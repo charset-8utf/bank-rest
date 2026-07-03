@@ -1,0 +1,16 @@
+databaseChangeLog:
+  - include:
+      file: db/migration/v1__init_schema.sql
+      relativeToChangelogFile: false
+  - include:
+      file: db/migration/v2__add_auditing_and_versioning.sql
+      relativeToChangelogFile: false
+  - include:
+      file: db/migration/v3__relational_schema.sql
+      relativeToChangelogFile: false
+  - include:
+      file: db/migration/v4__refresh_tokens.sql
+      relativeToChangelogFile: false
+  - include:
+      file: db/migration/v5__restrict_user_profiles_fk.sql
+      relativeToChangelogFile: false
