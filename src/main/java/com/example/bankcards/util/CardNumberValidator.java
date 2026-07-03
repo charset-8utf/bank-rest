@@ -2,15 +2,16 @@ package com.example.bankcards.util;
 
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
+import org.jspecify.annotations.Nullable;
 
 public class CardNumberValidator implements ConstraintValidator<ValidCardNumber, String> {
 
     @Override
-    public boolean isValid(String value, ConstraintValidatorContext context) {
-        if (value == null || !value.matches("\\d{16}")) {
-            return false;
+    public boolean isValid(@Nullable String value, ConstraintValidatorContext context) {
+        if (value == null) {
+            return true;
         }
-        return passesLuhn(value);
+        return value.matches("\\d{16}") && passesLuhn(value);
     }
 
     private boolean passesLuhn(String number) {

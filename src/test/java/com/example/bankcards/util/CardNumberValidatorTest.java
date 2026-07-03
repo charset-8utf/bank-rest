@@ -46,7 +46,9 @@ class CardNumberValidatorTest {
     }
 
     @Test
-    void isValid_null_returnsFalse() {
-        assertThat(validator.isValid(null, null)).isFalse();
+    void isValid_null_returnsTrue() {
+        // По спецификации Bean Validation, isValid должен возвращать true для null —
+        // null обрабатывается аннотацией @NotBlank на уровне поля
+        assertThat(validator.isValid(null, null)).isTrue();
     }
 }
