@@ -12,9 +12,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -47,6 +49,7 @@ public class AuthController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Выйти: инвалидировать access token (JTI blacklist) и refresh token")
     @SecurityRequirement(name = "bearerAuth")
+    @SuppressWarnings("java:S2589") // @RequestBody(required=false) passes null when no body is sent — SonarLint false positive
     public void logout(
             HttpServletRequest request,
             @RequestBody(required = false) RefreshTokenRequest body) {
@@ -56,7 +59,8 @@ public class AuthController {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             try {
                 jti = jwtService.extractJti(authHeader.substring(7));
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.debug("Не удалось извлечь JTI при выходе: {}", e.getMessage());
             }
         }
         authService.logout(jti, body != null ? body.refreshToken() : null);
