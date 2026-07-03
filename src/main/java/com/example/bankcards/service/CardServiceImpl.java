@@ -11,7 +11,6 @@ import com.example.bankcards.entity.CardStatus;
 import com.example.bankcards.entity.Transaction;
 import org.jspecify.annotations.Nullable;
 import com.example.bankcards.entity.User;
-import com.example.bankcards.exception.CardNotActiveException;
 import com.example.bankcards.exception.InsufficientFundsException;
 import com.example.bankcards.exception.ResourceNotFoundException;
 import com.example.bankcards.mapper.CardMapper;
@@ -81,6 +80,7 @@ public class CardServiceImpl implements CardService {
     @CacheEvict(value = CacheConfig.CARDS_CACHE, allEntries = true)
     public CardResponse activateCard(Long cardId) {
         Card card = getCardOrThrow(cardId);
+        card.getStatus().requireActivatable();
         card.setStatus(CardStatus.ACTIVE);
         log.info("Карта активирована: cardId={}", cardId);
         return toResponse(cardRepository.save(card));
@@ -130,9 +130,7 @@ public class CardServiceImpl implements CardService {
     public void requestBlock(Long cardId, Long userId) {
         Card card = getCardOrThrow(cardId);
         checkOwnership(card, userId);
-        if (card.getStatus() != CardStatus.ACTIVE) {
-            throw new CardNotActiveException("Карта не активна: " + cardId);
-        }
+        card.getStatus().requireActive();
         card.setStatus(CardStatus.BLOCKED);
         cardRepository.save(card);
         log.info("Пользователь запросил блокировку: cardId={}, userId={}", cardId, userId);
@@ -156,12 +154,8 @@ public class CardServiceImpl implements CardService {
         checkOwnership(from, userId);
         checkOwnership(to, userId);
 
-        if (from.getStatus() != CardStatus.ACTIVE) {
-            throw new CardNotActiveException("Карта-источник не активна");
-        }
-        if (to.getStatus() != CardStatus.ACTIVE) {
-            throw new CardNotActiveException("Карта-получатель не активна");
-        }
+        from.getStatus().requireActive("источник");
+        to.getStatus().requireActive("получатель");
         if (from.getBalance().compareTo(request.amount()) < 0) {
             throw new InsufficientFundsException("Недостаточно средств на карте-источнике");
         }

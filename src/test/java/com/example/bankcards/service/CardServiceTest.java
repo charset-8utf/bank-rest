@@ -156,6 +156,16 @@ class CardServiceTest {
     }
 
     @Test
+    void activateCard_expiredCard_throwsException() {
+        activeCard.setStatus(CardStatus.EXPIRED);
+        when(cardRepository.findById(10L)).thenReturn(Optional.of(activeCard));
+
+        assertThatThrownBy(() -> cardService.activateCard(10L))
+                .isInstanceOf(CardNotActiveException.class);
+        verify(cardRepository, never()).save(any());
+    }
+
+    @Test
     void transfer_success_updatesBalances() {
         TransferRequest request = new TransferRequest(10L, 20L, BigDecimal.valueOf(300));
         when(cardRepository.findById(10L)).thenReturn(Optional.of(activeCard));
