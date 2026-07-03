@@ -12,7 +12,7 @@ import java.util.Base64;
 
 @Component
 @RequiredArgsConstructor
-public class CardEncryptionUtil {
+public class AesGcmEncryptionStrategy implements CardEncryptionStrategy {
 
     private static final String ALGORITHM = "AES/GCM/NoPadding";
     private static final int GCM_IV_LENGTH = 12;
@@ -21,20 +21,14 @@ public class CardEncryptionUtil {
 
     private final SecurityProperties securityProperties;
 
-    private SecretKeySpec getSecretKeySpec() {
-        byte[] keyBytes = Base64.getDecoder().decode(securityProperties.cardEncryption().secret());
-        byte[] key = new byte[32];
-        System.arraycopy(keyBytes, 0, key, 0, Math.min(keyBytes.length, 32));
-        return new SecretKeySpec(key, "AES");
-    }
-
+    @Override
     public String encrypt(String cardNumber) {
         try {
             byte[] iv = new byte[GCM_IV_LENGTH];
             SECURE_RANDOM.nextBytes(iv);
 
             Cipher cipher = Cipher.getInstance(ALGORITHM);
-            cipher.init(Cipher.ENCRYPT_MODE, getSecretKeySpec(), new GCMParameterSpec(GCM_TAG_LENGTH, iv));
+            cipher.init(Cipher.ENCRYPT_MODE, keySpec(), new GCMParameterSpec(GCM_TAG_LENGTH, iv));
             byte[] encrypted = cipher.doFinal(cardNumber.getBytes());
 
             byte[] combined = new byte[GCM_IV_LENGTH + encrypted.length];
@@ -47,6 +41,7 @@ public class CardEncryptionUtil {
         }
     }
 
+    @Override
     public String decrypt(String encryptedCardNumber) {
         try {
             byte[] combined = Base64.getDecoder().decode(encryptedCardNumber);
@@ -57,10 +52,17 @@ public class CardEncryptionUtil {
             System.arraycopy(combined, GCM_IV_LENGTH, ciphertext, 0, ciphertext.length);
 
             Cipher cipher = Cipher.getInstance(ALGORITHM);
-            cipher.init(Cipher.DECRYPT_MODE, getSecretKeySpec(), new GCMParameterSpec(GCM_TAG_LENGTH, iv));
+            cipher.init(Cipher.DECRYPT_MODE, keySpec(), new GCMParameterSpec(GCM_TAG_LENGTH, iv));
             return new String(cipher.doFinal(ciphertext));
         } catch (Exception e) {
             throw new IllegalStateException("Ошибка дешифрования номера карты", e);
         }
+    }
+
+    private SecretKeySpec keySpec() {
+        byte[] keyBytes = Base64.getDecoder().decode(securityProperties.cardEncryption().secret());
+        byte[] key = new byte[32];
+        System.arraycopy(keyBytes, 0, key, 0, Math.min(keyBytes.length, 32));
+        return new SecretKeySpec(key, "AES");
     }
 }

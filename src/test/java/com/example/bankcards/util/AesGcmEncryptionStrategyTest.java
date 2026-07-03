@@ -9,9 +9,9 @@ import java.util.Base64;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class CardEncryptionUtilTest {
+class AesGcmEncryptionStrategyTest {
 
-    private CardEncryptionUtil encryptionUtil;
+    private AesGcmEncryptionStrategy strategy;
 
     @BeforeEach
     void setUp() {
@@ -20,35 +20,33 @@ class CardEncryptionUtilTest {
                 new SecurityProperties.CardEncryptionProperties("U0VDUkVUQ0FSRE5VTUJFUktFWTEyMzQ1Njc4"),
                 new SecurityProperties.RateLimitProperties(10, 10)
         );
-        encryptionUtil = new CardEncryptionUtil(properties);
+        strategy = new AesGcmEncryptionStrategy(properties);
     }
 
     @Test
     void encryptAndDecrypt_roundtrip_returnsOriginal() {
         String cardNumber = "4111111111111111";
-        String encrypted = encryptionUtil.encrypt(cardNumber);
-        assertThat(encryptionUtil.decrypt(encrypted)).isEqualTo(cardNumber);
+        String encrypted = strategy.encrypt(cardNumber);
+        assertThat(strategy.decrypt(encrypted)).isEqualTo(cardNumber);
     }
 
     @Test
     void encrypt_sameInput_producesDifferentCiphertexts() {
         String cardNumber = "4111111111111111";
-        String first = encryptionUtil.encrypt(cardNumber);
-        String second = encryptionUtil.encrypt(cardNumber);
-        assertThat(first).isNotEqualTo(second);
+        assertThat(strategy.encrypt(cardNumber)).isNotEqualTo(strategy.encrypt(cardNumber));
     }
 
     @Test
     void decrypt_invalidBase64_throwsIllegalStateException() {
-        assertThatThrownBy(() -> encryptionUtil.decrypt("not-valid-base64!!!"))
+        assertThatThrownBy(() -> strategy.decrypt("not-valid-base64!!!"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Ошибка дешифрования");
     }
 
     @Test
     void decrypt_validBase64ButCorruptedCiphertext_throwsIllegalStateException() {
-        String corruptedCiphertext = Base64.getEncoder().encodeToString(new byte[32]);
-        assertThatThrownBy(() -> encryptionUtil.decrypt(corruptedCiphertext))
+        String corrupted = Base64.getEncoder().encodeToString(new byte[32]);
+        assertThatThrownBy(() -> strategy.decrypt(corrupted))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Ошибка дешифрования");
     }
