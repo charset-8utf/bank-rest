@@ -1,0 +1,60 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/bankcards_db
+    username: bankcards_user
+    password: bankcards_pass
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  liquibase:
+    change-log: classpath:db/migration/changelog-master.yaml
+    enabled: true
+
+application:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+      expiration: ${JWT_EXPIRATION:900000}
+      refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
+    card-encryption:
+      secret: ${CARD_ENCRYPTION_SECRET:YmFua2NhcmRzLWFlczI1Ni1zZWNyZXQta2V5LTEyMzQ=}
+    rate-limit:
+      capacity: ${RATE_LIMIT_CAPACITY:10}
+      refill-per-minute: ${RATE_LIMIT_REFILL_PER_MINUTE:10}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, caches
+  endpoint:
+    health:
+      show-details: always
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: Bank Cards Management API
+    version: 0.0.1-SNAPSHOT
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  default-produces-media-type: application/json

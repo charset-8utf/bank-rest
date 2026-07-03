@@ -1,0 +1,26 @@
+# Build
+target/
+*.class
+*.jar
+*.war
+
+# Secrets — never commit real values
+.env
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# JaCoCo
+jacoco.exec

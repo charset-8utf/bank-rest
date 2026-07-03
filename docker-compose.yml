@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: bankcards_postgres
+    environment:
+      POSTGRES_DB: bankcards_db
+      POSTGRES_USER: bankcards_user
+      POSTGRES_PASSWORD: bankcards_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U bankcards_user -d bankcards_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: bankcards_app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/bankcards_db
+      SPRING_DATASOURCE_USERNAME: bankcards_user
+      SPRING_DATASOURCE_PASSWORD: bankcards_pass
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+      CARD_ENCRYPTION_SECRET: YmFua2NhcmRzLWFlczI1Ni1zZWNyZXQta2V5LTEyMzQ=
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/actuator/health || exit 1" ]
+      interval: 30s
+      timeout: 5s
+      start_period: 90s
+      retries: 3
+
+volumes:
+  postgres_data:
