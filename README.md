@@ -19,19 +19,19 @@ REST API для управления банковскими картами с JW
 
 ## Возможности
 
-| Область                      | Что реализовано                                                                                                               |
-|------------------------------|-------------------------------------------------------------------------------------------------------------------------------|
+| Область                      | Что реализовано                                                                                                                |
+|------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
 | **Аутентификация**           | Регистрация / вход / выход, JWT access token (15 мин) + refresh token (7 дней, rotation), JTI blacklist, роли `ADMIN` / `USER` |
-| **Rate limiting**            | Bucket4j: 10 запросов/мин с IP на auth-эндпоинты (`/login`, `/register`, `/refresh`); возвращает 429 с JSON-ошибкой         |
-| **Карты (USER)**             | Просмотр своих карт с пагинацией и фильтрацией, запрос блокировки, переводы между своими картами, история транзакций          |
-| **Карты (ADMIN)**            | Создание, блокировка, активация, удаление любых карт, просмотр всех карт с фильтрацией                                        |
-| **Пользователи (ADMIN)**     | Просмотр всех пользователей с пагинацией, получение по ID, удаление                                                           |
-| **Профиль (USER)**           | Просмотр и обновление своего профиля (имя, фамилия, телефон)                                                                  |
-| **Безопасность карт**        | Номера шифруются AES-256-GCM (random IV на каждое шифрование), в ответах — маска `**** **** **** 1234`; валидация Луна        |
-| **Кеширование**              | Caffeine: `users` (TTL 10 мин) — снимает нагрузку с БД при каждом JWT-запросе; `cards` (TTL 2 мин) — список карт пользователя |
-| **Оптимистичная блокировка** | `@Version` на `Card` + `@Retryable` (3 попытки, backoff 100ms×2) защищают от двойного списания при конкурентных переводах     |
+| **Rate limiting**            | Bucket4j: 10 запросов/мин с IP на auth-эндпоинты (`/login`, `/register`, `/refresh`); возвращает 429 с JSON-ошибкой            |
+| **Карты (USER)**             | Просмотр своих карт с пагинацией и фильтрацией, запрос блокировки, переводы между своими картами, история транзакций           |
+| **Карты (ADMIN)**            | Создание, блокировка, активация, удаление любых карт, просмотр всех карт с фильтрацией                                         |
+| **Пользователи (ADMIN)**     | Просмотр всех пользователей с пагинацией, получение по ID, удаление                                                            |
+| **Профиль (USER)**           | Просмотр и обновление своего профиля (имя, фамилия, телефон)                                                                   |
+| **Безопасность карт**        | Номера шифруются AES-256-GCM (random IV на каждое шифрование), в ответах — маска `**** **** **** 1234`; валидация Луна         |
+| **Кеширование**              | Caffeine: `users` (TTL 10 мин) — снимает нагрузку с БД при каждом JWT-запросе; `cards` (TTL 2 мин) — список карт пользователя  |
+| **Оптимистичная блокировка** | `@Version` на `Card` + `@Retryable` (3 попытки, backoff 100ms×2) защищают от двойного списания при конкурентных переводах      |
 | **Пагинация**                | Детерминированная: вторичная сортировка по `id` предотвращает дубли на границах страниц при одинаковом `createdAt`             |
-| **XSS-защита ответов**       | URI в теле ошибок санитизируется перед отдачей клиенту                                                                        |
+| **XSS-защита ответов**       | URI в теле ошибок санитизируется перед отдачей клиенту                                                                         |
 
 ---
 
@@ -40,14 +40,14 @@ REST API для управления банковскими картами с JW
 ```
 Client
   └─ HTTP ──► RateLimitingFilter ──► JwtAuthenticationFilter ──► Controller ──► Service (interface)
-                  (Bucket4j)              (blacklist check)                            │
-                                     TokenBlacklist                             ServiceImpl
-                                      (Caffeine JTI)                                  │
-                                                              ┌────────────────────────┼─────────────────┐
-                                                          Cache (Caffeine)        Repository         EncryptionUtil
-                                                          users / cards               │             (AES-256-GCM)
-                                                                                 PostgreSQL
-                                                                           refresh_tokens table
+                 (Bucket4j)              (blacklist check)                         │
+                                     TokenBlacklist                            ServiceImpl
+                                      (Caffeine JTI)                               │
+                                                          ┌────────────────────────┼─────────────────┐
+                                                       Cache (Caffeine)        Repository         EncryptionUtil
+                                                         users / cards             │               (AES-256-GCM)
+                                                                               PostgreSQL
+                                                                          refresh_tokens table
 ```
 
 ### Refresh token flow
@@ -111,20 +111,20 @@ API доступен на `http://localhost:8080`, Swagger UI — `http://localh
 **1. Секреты:**
 
 ```bash
-cp .env.example .env   # заполни JWT_SECRET и CARD_ENCRYPTION_SECRET своими значениями
+cp .env.example .env
 ```
 
 Все чувствительные параметры читаются из переменных окружения (`${VAR:fallback}`).
-Значения по умолчанию в `application.yml` — только для локальной разработки; в production обязательно переопредели через `.env` или переменные CI/CD.
+Значения по умолчанию в `application.yml` — только для локальной разработки.
 
-| Переменная                    | Описание                                               |
-|-------------------------------|--------------------------------------------------------|
-| `JWT_SECRET`                  | Секрет для подписи JWT (Base64, ≥32 байта)             |
-| `JWT_EXPIRATION`              | Время жизни access token в мс (по умолчанию 900000)   |
-| `JWT_REFRESH_EXPIRATION`      | Время жизни refresh token в мс (по умолчанию 604800000)|
-| `CARD_ENCRYPTION_SECRET`      | Ключ AES-256-GCM (Base64, ровно 32 байта)             |
-| `RATE_LIMIT_CAPACITY`         | Ёмкость bucket на IP (по умолчанию 10)                 |
-| `RATE_LIMIT_REFILL_PER_MINUTE`| Пополнение bucket в минуту (по умолчанию 10)           |
+| Переменная                     | Описание                                                |
+|--------------------------------|---------------------------------------------------------|
+| `JWT_SECRET`                   | Секрет для подписи JWT (Base64, ≥32 байта)              |
+| `JWT_EXPIRATION`               | Время жизни access token в мс (по умолчанию 900000)     |
+| `JWT_REFRESH_EXPIRATION`       | Время жизни refresh token в мс (по умолчанию 604800000) |
+| `CARD_ENCRYPTION_SECRET`       | Ключ AES-256-GCM (Base64, ровно 32 байта)               |
+| `RATE_LIMIT_CAPACITY`          | Ёмкость bucket на IP (по умолчанию 10)                  |
+| `RATE_LIMIT_REFILL_PER_MINUTE` | Пополнение bucket в минуту (по умолчанию 10)            |
 
 **2. База данных:**
 
@@ -149,7 +149,6 @@ mvn spring-boot:run
 curl -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"username": "alice", "email": "alice@example.com", "password": "secret123"}'
-# → {"accessToken": "eyJ...", "refreshToken": "550e8400-..."}
 
 # Вход
 curl -X POST http://localhost:8080/api/auth/login \
@@ -160,7 +159,6 @@ curl -X POST http://localhost:8080/api/auth/login \
 curl -X POST http://localhost:8080/api/auth/refresh \
   -H "Content-Type: application/json" \
   -d '{"refreshToken": "550e8400-..."}'
-# → {"accessToken": "eyJ...", "refreshToken": "новый-uuid"}
 
 # Выход — инвалидирует оба токена
 curl -X POST http://localhost:8080/api/auth/logout \
@@ -212,26 +210,26 @@ curl -X DELETE http://localhost:8080/api/admin/users/7 -H "Authorization: Bearer
 
 ### Таблица эндпоинтов
 
-| Метод  | Путь                             | Роль  | Описание                                      |
-|--------|----------------------------------|-------|-----------------------------------------------|
+| Метод  | Путь                             | Роль  | Описание                                       |
+|--------|----------------------------------|-------|------------------------------------------------|
 | POST   | `/api/auth/register`             | —     | Регистрация, возвращает access + refresh token |
 | POST   | `/api/auth/login`                | —     | Вход, возвращает access + refresh token        |
 | POST   | `/api/auth/refresh`              | —     | Обновление токенов (rotation)                  |
-| POST   | `/api/auth/logout`               | USER  | Выход, инвалидирует оба токена                |
-| GET    | `/api/cards`                     | USER  | Свои карты (пагинация, фильтр по статусу)     |
-| PUT    | `/api/cards/{id}/block`          | USER  | Запросить блокировку своей карты              |
-| GET    | `/api/cards/{id}/transactions`   | USER  | История транзакций по своей карте             |
-| POST   | `/api/cards/transfer`            | USER  | Перевод между своими картами                  |
-| GET    | `/api/users/profile`             | USER  | Получить свой профиль                         |
-| PUT    | `/api/users/profile`             | USER  | Обновить свой профиль                         |
-| POST   | `/api/admin/cards`               | ADMIN | Создать карту для пользователя                |
-| GET    | `/api/admin/cards`               | ADMIN | Все карты (пагинация, фильтр по статусу)      |
-| PUT    | `/api/admin/cards/{id}/block`    | ADMIN | Заблокировать карту                           |
-| PUT    | `/api/admin/cards/{id}/activate` | ADMIN | Активировать карту                            |
-| DELETE | `/api/admin/cards/{id}`          | ADMIN | Удалить карту                                 |
-| GET    | `/api/admin/users`               | ADMIN | Все пользователи (пагинация)                  |
-| GET    | `/api/admin/users/{id}`          | ADMIN | Пользователь по ID                            |
-| DELETE | `/api/admin/users/{id}`          | ADMIN | Удалить пользователя                          |
+| POST   | `/api/auth/logout`               | USER  | Выход, инвалидирует оба токена                 |
+| GET    | `/api/cards`                     | USER  | Свои карты (пагинация, фильтр по статусу)      |
+| PUT    | `/api/cards/{id}/block`          | USER  | Запросить блокировку своей карты               |
+| GET    | `/api/cards/{id}/transactions`   | USER  | История транзакций по своей карте              |
+| POST   | `/api/cards/transfer`            | USER  | Перевод между своими картами                   |
+| GET    | `/api/users/profile`             | USER  | Получить свой профиль                          |
+| PUT    | `/api/users/profile`             | USER  | Обновить свой профиль                          |
+| POST   | `/api/admin/cards`               | ADMIN | Создать карту для пользователя                 |
+| GET    | `/api/admin/cards`               | ADMIN | Все карты (пагинация, фильтр по статусу)       |
+| PUT    | `/api/admin/cards/{id}/block`    | ADMIN | Заблокировать карту                            |
+| PUT    | `/api/admin/cards/{id}/activate` | ADMIN | Активировать карту                             |
+| DELETE | `/api/admin/cards/{id}`          | ADMIN | Удалить карту                                  |
+| GET    | `/api/admin/users`               | ADMIN | Все пользователи (пагинация)                   |
+| GET    | `/api/admin/users/{id}`          | ADMIN | Пользователь по ID                             |
+| DELETE | `/api/admin/users/{id}`          | ADMIN | Удалить пользователя                           |
 
 > Роль `ADMIN` назначается напрямую в БД. Новые пользователи получают роль `USER` автоматически.
 >
@@ -242,8 +240,8 @@ curl -X DELETE http://localhost:8080/api/admin/users/7 -H "Authorization: Bearer
 ## Тесты и покрытие
 
 ```bash
-mvn test                   # тесты + JaCoCo отчёт
-mvn verify                 # тесты + JaCoCo + проверка порогов + генерация docs/openapi.yaml
+mvn test     # тесты + JaCoCo отчёт
+mvn verify   # тесты + JaCoCo + проверка порогов + генерация docs/openapi.yaml
 ```
 
 **Типы тестов:**
@@ -259,28 +257,13 @@ mvn verify                 # тесты + JaCoCo + проверка порого
 
 GitHub Actions (`.github/workflows/ci.yml`):
 
-| Job            | Шаги                                                              |
-|----------------|-------------------------------------------------------------------|
-| **test**       | Checkout → JDK 21 → `mvn test jacoco:report` → upload JaCoCo     |
-| **docker**     | Checkout → JDK 21 → `mvn package -DskipTests` → Docker build      |
+| Job        | Шаги                                                         |
+|------------|--------------------------------------------------------------|
+| **test**   | Checkout → JDK 21 → `mvn test jacoco:report` → upload JaCoCo |
+| **docker** | Checkout → JDK 21 → `mvn package -DskipTests` → Docker build |
 
 Testcontainers использует Docker-in-Docker (доступен на `ubuntu-latest`).  
 Docker job запускается только после успешного прохождения тестов.
-
----
-
-## Архитектурные решения
-
-| Решение                             | Обоснование                                                                          |
-|-------------------------------------|--------------------------------------------------------------------------------------|
-| Access token 15 мин + refresh token | Короткий TTL access token снижает окно компрометации; refresh rotation = replay защита |
-| Blacklist в памяти (Caffeine)       | Не переживает рестарт и не масштабируется горизонтально; для production — Redis       |
-| ON DELETE RESTRICT для refresh_tokens | Активные сессии удаляются явно в service слое с логированием; CASCADE обходит контроль |
-| ON DELETE RESTRICT для user_profiles  | PII данные должны удаляться управляемо, не каскадом                                  |
-| Rate limit в фильтре (не AOP)       | Выполняется до Spring Security — предотвращает нагрузку на аутентификацию             |
-| Детерминированная пагинация         | `sort=createdAt,id` — вторичный `id` гарантирует стабильный порядок при дублирующихся timestamps |
-| `@Retryable` на transfer            | Оптимистичная блокировка без пессимистичных локов — выбор в пользу throughput         |
-| Перевод только между своими картами | Scope проекта — управление личными картами, а не межбанковские переводы               |
 
 ---
 
