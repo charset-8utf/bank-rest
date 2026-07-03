@@ -13,6 +13,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -49,10 +50,10 @@ public class AuthController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Выйти: инвалидировать access token (JTI blacklist) и refresh token")
     @SecurityRequirement(name = "bearerAuth")
-    @SuppressWarnings("java:S2589") // @RequestBody(required=false) passes null when no body is sent — SonarLint false positive
+    @SuppressWarnings("java:S2589")
     public void logout(
             HttpServletRequest request,
-            @RequestBody(required = false) RefreshTokenRequest body) {
+            @Nullable @RequestBody(required = false) RefreshTokenRequest body) {
 
         String authHeader = request.getHeader("Authorization");
         String jti = null;
