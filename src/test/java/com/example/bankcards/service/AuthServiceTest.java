@@ -145,7 +145,8 @@ class AuthServiceTest {
         when(refreshTokenService.validate("bad-token"))
                 .thenThrow(new InvalidRefreshTokenException("Refresh token не найден или уже использован"));
 
-        assertThatThrownBy(() -> authService.refresh(new RefreshTokenRequest("bad-token")))
+        RefreshTokenRequest request = new RefreshTokenRequest("bad-token");
+        assertThatThrownBy(() -> authService.refresh(request))
                 .isInstanceOf(InvalidRefreshTokenException.class);
         verify(refreshTokenService, never()).create(any());
     }
