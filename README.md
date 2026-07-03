@@ -12,7 +12,7 @@
 ![OpenAPI](https://img.shields.io/badge/OpenAPI-3-green?logo=swagger)
 ![Maven](https://img.shields.io/badge/Maven-3.9+-blue?logo=apachemaven)
 ![CI](https://github.com/charset-8utf/bank-rest/actions/workflows/ci.yml/badge.svg)
-[![Release](https://img.shields.io/github/v/release/charset-8utf/bank-rest?logo=github)](https://github.com/charset-8utf/bank-rest/releases)
+[![Release](https://img.shields.io/github/v/release/charset-8utf/bank-rest?logo=github&cacheSeconds=0)](https://github.com/charset-8utf/bank-rest/releases)
 [![GHCR](https://img.shields.io/badge/GHCR-latest-2496ED?logo=docker&logoColor=white)](https://github.com/charset-8utf/bank-rest/pkgs/container/bank-rest)
 
 REST API для управления банковскими картами с JWT-аутентификацией (access + refresh tokens), ролевой моделью, AES-GCM шифрованием номеров карт и rate limiting.
