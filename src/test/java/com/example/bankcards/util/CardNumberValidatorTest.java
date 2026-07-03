@@ -1,14 +1,17 @@
 package com.example.bankcards.util;
 
+import jakarta.validation.ConstraintValidatorContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 class CardNumberValidatorTest {
 
     private final CardNumberValidator validator = new CardNumberValidator();
+    private final ConstraintValidatorContext context = mock(ConstraintValidatorContext.class);
 
     @ParameterizedTest
     @ValueSource(strings = {
@@ -18,7 +21,7 @@ class CardNumberValidatorTest {
             "0000000000000000"
     })
     void isValid_validLuhnNumbers_returnsTrue(String number) {
-        assertThat(validator.isValid(number, null)).isTrue();
+        assertThat(validator.isValid(number, context)).isTrue();
     }
 
     @ParameterizedTest
@@ -27,28 +30,26 @@ class CardNumberValidatorTest {
             "1234567890123456"
     })
     void isValid_failsLuhn_returnsFalse(String number) {
-        assertThat(validator.isValid(number, null)).isFalse();
+        assertThat(validator.isValid(number, context)).isFalse();
     }
 
     @Test
     void isValid_tooShort_returnsFalse() {
-        assertThat(validator.isValid("411111111111111", null)).isFalse();
+        assertThat(validator.isValid("411111111111111", context)).isFalse();
     }
 
     @Test
     void isValid_tooLong_returnsFalse() {
-        assertThat(validator.isValid("41111111111111119", null)).isFalse();
+        assertThat(validator.isValid("41111111111111119", context)).isFalse();
     }
 
     @Test
     void isValid_containsLetters_returnsFalse() {
-        assertThat(validator.isValid("411111111111111A", null)).isFalse();
+        assertThat(validator.isValid("411111111111111A", context)).isFalse();
     }
 
     @Test
     void isValid_null_returnsTrue() {
-        // По спецификации Bean Validation, isValid должен возвращать true для null —
-        // null обрабатывается аннотацией @NotBlank на уровне поля
-        assertThat(validator.isValid(null, null)).isTrue();
+        assertThat(validator.isValid(null, context)).isTrue();
     }
 }
