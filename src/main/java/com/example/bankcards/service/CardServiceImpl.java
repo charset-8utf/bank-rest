@@ -9,20 +9,23 @@ import com.example.bankcards.dto.response.TransactionResponse;
 import com.example.bankcards.entity.Card;
 import com.example.bankcards.entity.CardStatus;
 import com.example.bankcards.entity.Transaction;
-import org.jspecify.annotations.Nullable;
 import com.example.bankcards.entity.User;
-import com.example.bankcards.exception.InsufficientFundsException;
+import com.example.bankcards.event.TransferCompletedEvent;
 import com.example.bankcards.exception.ResourceNotFoundException;
 import com.example.bankcards.mapper.CardMapper;
 import com.example.bankcards.repository.CardRepository;
 import com.example.bankcards.repository.TransactionRepository;
 import com.example.bankcards.repository.UserRepository;
-import com.example.bankcards.util.CardEncryptionUtil;
+import com.example.bankcards.service.transfer.TransferContext;
+import com.example.bankcards.service.transfer.TransferHandler;
+import com.example.bankcards.util.CardEncryptionStrategy;
 import com.example.bankcards.util.CardMaskUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -41,10 +44,12 @@ public class CardServiceImpl implements CardService {
 
     private final CardRepository cardRepository;
     private final UserRepository userRepository;
-    private final CardEncryptionUtil encryptionUtil;
+    private final CardEncryptionStrategy encryptionStrategy;
     private final CardMaskUtil cardMaskUtil;
     private final CardMapper cardMapper;
     private final TransactionRepository transactionRepository;
+    private final ApplicationEventPublisher eventPublisher;
+    private final TransferHandler transferValidationChain;
 
     @Override
     @Transactional
@@ -54,7 +59,7 @@ public class CardServiceImpl implements CardService {
                 .orElseThrow(() -> new ResourceNotFoundException("Пользователь не найден: " + request.ownerId()));
 
         Card card = Card.builder()
-                .cardNumberEncrypted(encryptionUtil.encrypt(request.cardNumber()))
+                .cardNumberEncrypted(encryptionStrategy.encrypt(request.cardNumber()))
                 .owner(owner)
                 .expiryDate(request.expiryDate())
                 .status(CardStatus.ACTIVE)
@@ -151,14 +156,7 @@ public class CardServiceImpl implements CardService {
         Card from = getCardOrThrow(request.fromCardId());
         Card to = getCardOrThrow(request.toCardId());
 
-        checkOwnership(from, userId);
-        checkOwnership(to, userId);
-
-        from.getStatus().requireActive("источник");
-        to.getStatus().requireActive("получатель");
-        if (from.getBalance().compareTo(request.amount()) < 0) {
-            throw new InsufficientFundsException("Недостаточно средств на карте-источнике");
-        }
+        transferValidationChain.handle(new TransferContext(from, to, request.amount(), userId));
 
         from.setBalance(from.getBalance().subtract(request.amount()));
         to.setBalance(to.getBalance().add(request.amount()));
@@ -166,12 +164,7 @@ public class CardServiceImpl implements CardService {
         cardRepository.save(from);
         cardRepository.save(to);
 
-        transactionRepository.save(Transaction.builder()
-                .fromCard(from)
-                .toCard(to)
-                .amount(request.amount())
-                .description("Перевод")
-                .build());
+        eventPublisher.publishEvent(new TransferCompletedEvent(from, to, request.amount()));
 
         log.info("Перевод выполнен: fromCard={}, toCard={}, amount={}, userId={}",
                 request.fromCardId(), request.toCardId(), request.amount(), userId);
@@ -197,13 +190,13 @@ public class CardServiceImpl implements CardService {
     }
 
     private CardResponse toResponse(Card card) {
-        String masked = cardMaskUtil.mask(encryptionUtil.decrypt(card.getCardNumberEncrypted()));
+        String masked = cardMaskUtil.mask(encryptionStrategy.decrypt(card.getCardNumberEncrypted()));
         return cardMapper.toResponse(card, masked);
     }
 
-    private TransactionResponse toTransactionResponse(com.example.bankcards.entity.Transaction t) {
-        String fromMasked = cardMaskUtil.mask(encryptionUtil.decrypt(t.getFromCard().getCardNumberEncrypted()));
-        String toMasked   = cardMaskUtil.mask(encryptionUtil.decrypt(t.getToCard().getCardNumberEncrypted()));
+    private TransactionResponse toTransactionResponse(Transaction t) {
+        String fromMasked = cardMaskUtil.mask(encryptionStrategy.decrypt(t.getFromCard().getCardNumberEncrypted()));
+        String toMasked   = cardMaskUtil.mask(encryptionStrategy.decrypt(t.getToCard().getCardNumberEncrypted()));
         return new TransactionResponse(
                 t.getId(),
                 t.getFromCard().getId(),

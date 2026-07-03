@@ -11,14 +11,15 @@ import com.example.bankcards.entity.CardStatus;
 import com.example.bankcards.entity.Role;
 import com.example.bankcards.entity.RoleType;
 import com.example.bankcards.entity.User;
+import com.example.bankcards.event.TransferCompletedEvent;
 import com.example.bankcards.exception.CardNotActiveException;
-import com.example.bankcards.exception.InsufficientFundsException;
 import com.example.bankcards.exception.ResourceNotFoundException;
 import com.example.bankcards.mapper.CardMapper;
 import com.example.bankcards.repository.CardRepository;
 import com.example.bankcards.repository.TransactionRepository;
 import com.example.bankcards.repository.UserRepository;
-import com.example.bankcards.util.CardEncryptionUtil;
+import com.example.bankcards.service.transfer.TransferHandler;
+import com.example.bankcards.util.CardEncryptionStrategy;
 import com.example.bankcards.util.CardMaskUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
@@ -49,10 +51,12 @@ class CardServiceTest {
 
     @Mock private CardRepository cardRepository;
     @Mock private UserRepository userRepository;
-    @Mock private CardEncryptionUtil encryptionUtil;
+    @Mock private CardEncryptionStrategy encryptionStrategy;
     @Mock private CardMaskUtil cardMaskUtil;
     @Mock private CardMapper cardMapper;
     @Mock private TransactionRepository transactionRepository;
+    @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private TransferHandler transferValidationChain;
 
     @InjectMocks
     private CardServiceImpl cardService;
@@ -90,7 +94,7 @@ class CardServiceTest {
     }
 
     private void stubCardMapping() {
-        when(encryptionUtil.decrypt(any())).thenReturn("1234567890123456");
+        when(encryptionStrategy.decrypt(any())).thenReturn("1234567890123456");
         when(cardMaskUtil.mask(any())).thenReturn("**** **** **** 3456");
         when(cardMapper.toResponse(any(Card.class), any(String.class))).thenAnswer(inv -> {
             Card c = inv.getArgument(0);
@@ -106,7 +110,7 @@ class CardServiceTest {
         stubCardMapping();
         CardCreateRequest request = new CardCreateRequest(1L, "1234567890123456", LocalDate.now().plusYears(3));
         when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
-        when(encryptionUtil.encrypt("1234567890123456")).thenReturn("encrypted");
+        when(encryptionStrategy.encrypt("1234567890123456")).thenReturn("encrypted");
         when(cardRepository.save(any(Card.class))).thenAnswer(inv -> {
             Card c = inv.getArgument(0);
             c = Card.builder()
@@ -166,18 +170,18 @@ class CardServiceTest {
     }
 
     @Test
-    void transfer_success_updatesBalances() {
+    void transfer_success_updatesBalancesAndPublishesEvent() {
         TransferRequest request = new TransferRequest(10L, 20L, BigDecimal.valueOf(300));
         when(cardRepository.findById(10L)).thenReturn(Optional.of(activeCard));
         when(cardRepository.findById(20L)).thenReturn(Optional.of(secondCard));
         when(cardRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(transactionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         cardService.transfer(request, 1L);
 
         assertThat(activeCard.getBalance()).isEqualByComparingTo("700");
         assertThat(secondCard.getBalance()).isEqualByComparingTo("800");
         verify(cardRepository, times(2)).save(any());
+        verify(eventPublisher).publishEvent(any(TransferCompletedEvent.class));
     }
 
     @Test
@@ -186,39 +190,7 @@ class CardServiceTest {
 
         assertThatThrownBy(() -> cardService.transfer(request, 1L))
                 .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void transfer_insufficientFunds_throwsException() {
-        TransferRequest request = new TransferRequest(10L, 20L, BigDecimal.valueOf(9999));
-        when(cardRepository.findById(10L)).thenReturn(Optional.of(activeCard));
-        when(cardRepository.findById(20L)).thenReturn(Optional.of(secondCard));
-
-        assertThatThrownBy(() -> cardService.transfer(request, 1L))
-                .isInstanceOf(InsufficientFundsException.class);
-    }
-
-    @Test
-    void transfer_sourceCardBlocked_throwsException() {
-        activeCard.setStatus(CardStatus.BLOCKED);
-        TransferRequest request = new TransferRequest(10L, 20L, BigDecimal.valueOf(100));
-        when(cardRepository.findById(10L)).thenReturn(Optional.of(activeCard));
-        when(cardRepository.findById(20L)).thenReturn(Optional.of(secondCard));
-
-        assertThatThrownBy(() -> cardService.transfer(request, 1L))
-                .isInstanceOf(CardNotActiveException.class)
-                .hasMessageContaining("источник");
-    }
-
-    @Test
-    void transfer_cardBelongsToOtherUser_throwsAccessDenied() {
-        activeCard.setOwner(otherUser);
-        TransferRequest request = new TransferRequest(10L, 20L, BigDecimal.valueOf(100));
-        when(cardRepository.findById(10L)).thenReturn(Optional.of(activeCard));
-        when(cardRepository.findById(20L)).thenReturn(Optional.of(secondCard));
-
-        assertThatThrownBy(() -> cardService.transfer(request, 1L))
-                .isInstanceOf(AccessDeniedException.class);
+        verifyNoInteractions(transferValidationChain);
     }
 
     @Test
@@ -320,20 +292,8 @@ class CardServiceTest {
     }
 
     @Test
-    void transfer_destinationCardBlocked_throwsException() {
-        secondCard.setStatus(CardStatus.BLOCKED);
-        TransferRequest request = new TransferRequest(10L, 20L, BigDecimal.valueOf(100));
-        when(cardRepository.findById(10L)).thenReturn(Optional.of(activeCard));
-        when(cardRepository.findById(20L)).thenReturn(Optional.of(secondCard));
-
-        assertThatThrownBy(() -> cardService.transfer(request, 1L))
-                .isInstanceOf(CardNotActiveException.class)
-                .hasMessageContaining("получатель");
-    }
-
-    @Test
     void getCardTransactions_ownCard_returnsPaginatedTransactions() {
-        when(encryptionUtil.decrypt(any())).thenReturn("1234567890123456");
+        when(encryptionStrategy.decrypt(any())).thenReturn("1234567890123456");
         when(cardMaskUtil.mask(any())).thenReturn("**** **** **** 3456");
         Pageable pageable = PageRequest.of(0, 10);
         Transaction tx = Transaction.builder()
@@ -359,7 +319,7 @@ class CardServiceTest {
         when(cardRepository.findById(10L)).thenReturn(Optional.of(activeCard));
 
         assertThatThrownBy(() -> cardService.getCardTransactions(10L, 2L, PageRequest.of(0, 10)))
-                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+                .isInstanceOf(AccessDeniedException.class);
         verify(transactionRepository, never()).findByCardId(any(), any());
     }
 }
